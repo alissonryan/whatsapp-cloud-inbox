@@ -13,7 +13,12 @@ import { Input } from '@/components/ui/input';
 import { ScrollArea } from '@/components/ui/scroll-area';
 import { Skeleton } from '@/components/ui/skeleton';
 import { Badge } from '@/components/ui/badge';
-import type { MediaData } from '@kapso/whatsapp-cloud-api';
+
+type MediaData = {
+  filename?: string;
+  contentType?: string;
+  byteSize?: number;
+};
 
 type Message = {
   id: string;
@@ -137,6 +142,7 @@ export function MessageView({ conversationId, phoneNumber, contactName, onTempla
   const messagesContainerRef = useRef<HTMLDivElement>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
   const previousMessageCountRef = useRef(0);
+  const devAllowFreeform = process.env.NEXT_PUBLIC_INBOX_DEV_ALLOW_FREEFORM === 'true';
 
   const scrollToBottom = () => {
     messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
@@ -148,6 +154,11 @@ export function MessageView({ conversationId, phoneNumber, contactName, onTempla
     try {
       const response = await fetch(`/api/messages/${conversationId}`);
       const data = await response.json();
+
+      if (data?.mode === 'send-only') {
+        // No server-side history yet (Phase 1 will enable DB + webhooks).
+        return;
+      }
 
       // Separate reactions from regular messages
       const reactions = (data.data || []).filter((msg: Message) => msg.messageType === 'reaction');
@@ -183,6 +194,8 @@ export function MessageView({ conversationId, phoneNumber, contactName, onTempla
 
   useEffect(() => {
     if (conversationId) {
+      setMessages([]);
+      previousMessageCountRef.current = 0;
       setLoading(true);
       fetchMessages();
     }
@@ -196,7 +209,7 @@ export function MessageView({ conversationId, phoneNumber, contactName, onTempla
   }, [messages, isNearBottom]);
 
   useEffect(() => {
-    setCanSendRegularMessage(isWithin24HourWindow(messages));
+    setCanSendRegularMessage(devAllowFreeform ? true : isWithin24HourWindow(messages));
   }, [messages]);
 
   // Track if user is near bottom of scroll
@@ -274,13 +287,55 @@ export function MessageView({ conversationId, phoneNumber, contactName, onTempla
         formData.append('file', selectedFile);
       }
 
-      await fetch('/api/messages/send', {
+      const response = await fetch('/api/messages/send', {
         method: 'POST',
         body: formData
       });
+      const sendResult = await response.json().catch(() => null);
+      if (!response.ok) {
+        throw new Error(sendResult?.error || 'Failed to send message');
+      }
 
+      const nowIso = new Date().toISOString();
+      const messageId: string =
+        sendResult?.messages?.[0]?.id ??
+        (typeof globalThis.crypto?.randomUUID === 'function'
+          ? globalThis.crypto.randomUUID()
+          : `local:${Date.now()}`);
+
+      const isMedia = Boolean(selectedFile);
+      const optimistic: Message = {
+        id: messageId,
+        direction: 'outbound',
+        content: isMedia ? '' : messageInput.trim(),
+        createdAt: nowIso,
+        status: 'sent',
+        phoneNumber,
+        hasMedia: isMedia,
+        caption: isMedia ? (messageInput.trim() || null) : null,
+        messageType: isMedia
+          ? (selectedFile?.type.startsWith('image/')
+              ? 'image'
+              : selectedFile?.type.startsWith('video/')
+                ? 'video'
+                : selectedFile?.type.startsWith('audio/')
+                  ? 'audio'
+                  : 'document')
+          : 'text',
+        filename: isMedia ? selectedFile?.name ?? null : null,
+        mimeType: isMedia ? selectedFile?.type ?? null : null,
+        metadata: isMedia
+          ? {
+              mediaId: sendResult?._local?.uploadedMediaId
+            }
+          : undefined
+      };
+
+      setMessages((prev) => [...prev, optimistic]);
       setMessageInput('');
       handleRemoveFile();
+
+      // If/when Phase 1 enables DB-backed inbox, this will refresh from the server.
       await fetchMessages();
     } catch (error) {
       console.error('Error sending message:', error);
@@ -535,6 +590,11 @@ export function MessageView({ conversationId, phoneNumber, contactName, onTempla
       </ScrollArea>
 
       <div className="border-t border-[#d1d7db] bg-[#f0f2f5]">
+        {devAllowFreeform && (
+          <div className="px-3 pt-2 max-w-[900px] mx-auto w-full">
+            <span className="text-xs text-[#667781]">Dev override: freeform sending enabled</span>
+          </div>
+        )}
         {canSendRegularMessage ? (
           <>
             {selectedFile && (

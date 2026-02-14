@@ -27,6 +27,8 @@ type Conversation = {
   };
 };
 
+type InboxMode = 'unknown' | 'send-only' | 'db';
+
 function formatConversationDate(timestamp: string): string {
   try {
     const date = new Date(timestamp);
@@ -57,6 +59,20 @@ function getAvatarInitials(contactName?: string, phoneNumber?: string): string {
   return '??';
 }
 
+function normalizePhoneNumberInput(input: string): string {
+  const trimmed = input.trim();
+  if (!trimmed) return '';
+  const hasPlus = trimmed.startsWith('+');
+  const digits = trimmed.replace(/\D/g, '');
+  return `${hasPlus ? '+' : ''}${digits}`;
+}
+
+function looksLikePhoneNumber(input: string): boolean {
+  const normalized = normalizePhoneNumberInput(input);
+  const digits = normalized.replace(/\D/g, '');
+  return digits.length >= 8;
+}
+
 type Props = {
   onSelectConversation: (conversation: Conversation) => void;
   selectedConversationId?: string;
@@ -70,16 +86,26 @@ export type ConversationListRef = {
 
 export const ConversationList = forwardRef<ConversationListRef, Props>(
   ({ onSelectConversation, selectedConversationId, isHidden = false }, ref) => {
-  const [conversations, setConversations] = useState<Conversation[]>([]);
+  const [serverConversations, setServerConversations] = useState<Conversation[]>([]);
+  const [localConversations, setLocalConversations] = useState<Conversation[]>([]);
+  const [inboxMode, setInboxMode] = useState<InboxMode>('unknown');
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
   const [searchQuery, setSearchQuery] = useState('');
+
+  const mergedConversations: Conversation[] = [
+    ...serverConversations,
+    ...localConversations.filter(
+      (localConv) => !serverConversations.some((serverConv) => serverConv.phoneNumber === localConv.phoneNumber)
+    )
+  ];
 
   const fetchConversations = useCallback(async () => {
     try {
       const response = await fetch('/api/conversations');
       const data = await response.json();
-      setConversations(data.data || []);
+      setInboxMode((data?.mode as InboxMode | undefined) ?? 'unknown');
+      setServerConversations(data.data || []);
     } catch (error) {
       console.error('Error fetching conversations:', error);
     } finally {
@@ -105,7 +131,7 @@ export const ConversationList = forwardRef<ConversationListRef, Props>(
   });
 
   const selectByPhoneNumber = (phoneNumber: string) => {
-    const conversation = conversations.find(conv => conv.phoneNumber === phoneNumber);
+    const conversation = mergedConversations.find(conv => conv.phoneNumber === phoneNumber);
     if (conversation) {
       onSelectConversation(conversation);
     }
@@ -117,20 +143,47 @@ export const ConversationList = forwardRef<ConversationListRef, Props>(
       const response = await fetch('/api/conversations');
       const data = await response.json();
       const newConversations = data.data || [];
-      setConversations(newConversations);
+      setInboxMode((data?.mode as InboxMode | undefined) ?? 'unknown');
+      setServerConversations(newConversations);
       setRefreshing(false);
-      return newConversations;
+      return [
+        ...newConversations,
+        ...localConversations.filter(
+          (localConv) => !newConversations.some((serverConv: Conversation) => serverConv.phoneNumber === localConv.phoneNumber)
+        )
+      ];
     },
     selectByPhoneNumber
   }));
 
-  const filteredConversations = conversations.filter((conv) => {
+  const filteredConversations = mergedConversations.filter((conv) => {
     const query = searchQuery.toLowerCase();
     return (
       conv.phoneNumber.toLowerCase().includes(query) ||
       conv.contactName?.toLowerCase().includes(query)
     );
   });
+
+  const canStartChat = inboxMode === 'send-only' && looksLikePhoneNumber(searchQuery) && filteredConversations.length === 0;
+  const startChatPhoneNumber = normalizePhoneNumberInput(searchQuery);
+
+  const handleStartChat = () => {
+    if (!startChatPhoneNumber) return;
+    const conversation: Conversation = {
+      id: `temp:${startChatPhoneNumber}`,
+      phoneNumber: startChatPhoneNumber,
+      status: 'active',
+      lastActiveAt: new Date().toISOString(),
+      phoneNumberId: '',
+      metadata: {}
+    };
+
+    setLocalConversations((prev) => {
+      if (prev.some((c) => c.phoneNumber === conversation.phoneNumber)) return prev;
+      return [conversation, ...prev];
+    });
+    onSelectConversation(conversation);
+  };
 
   if (loading) {
     return (
@@ -175,6 +228,11 @@ export const ConversationList = forwardRef<ConversationListRef, Props>(
                 title="Auto-updating"
               />
             )}
+            {inboxMode === 'send-only' && (
+              <span className="text-xs text-[#667781]" title="History will be enabled in Phase 1 (DB + webhooks)">
+                send-only
+              </span>
+            )}
           </div>
           <Button
             onClick={handleRefresh}
@@ -201,7 +259,16 @@ export const ConversationList = forwardRef<ConversationListRef, Props>(
       <ScrollArea className="flex-1 h-0 overflow-hidden">
         {filteredConversations.length === 0 ? (
           <div className="p-4 text-center text-[#667781]">
-            {searchQuery ? 'No conversations found' : 'No conversations yet'}
+            {canStartChat ? (
+              <button
+                onClick={handleStartChat}
+                className="w-full text-left p-3 rounded-lg border border-[#d1d7db] hover:bg-[#f0f2f5] transition-colors"
+              >
+                Start chat with <span className="font-medium text-[#111b21]">{startChatPhoneNumber}</span>
+              </button>
+            ) : (
+              <>{searchQuery ? 'No conversations found' : 'No conversations yet'}</>
+            )}
           </div>
         ) : (
           <div className="w-full overflow-hidden">
