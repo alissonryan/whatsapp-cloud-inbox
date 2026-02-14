@@ -1,49 +1,58 @@
-# WhatsApp Inbox
+# WhatsApp Cloud Inbox
 
-A WhatsApp Web-style inbox built with Next.js for the WhatsApp Cloud API. Send messages, templates, and interactive buttons with a familiar UI.
-
-[![Deploy with Vercel](https://vercel.com/button)](https://vercel.com/new/clone?repository-url=https%3A%2F%2Fgithub.com%2Fgokapso%2Fwhatsapp-cloud-inbox&env=PHONE_NUMBER_ID,KAPSO_API_KEY,WABA_ID&envDescription=Get%20these%20credentials%20from%20app.kapso.ai&envLink=https%3A%2F%2Fapp.kapso.ai)
-
-![WhatsApp Cloud Inbox](https://cdn.jsdelivr.net/gh/gokapso/whatsapp-cloud-inbox@main/assets/kapso-whatsapp-inbox.png)
+WhatsApp Web-style inbox UI built with Next.js for the official WhatsApp Cloud API (Meta). This project connects directly to Meta (Graph API).
 
 ## Features
 
-- **Real-time messaging** - Auto-polling keeps conversations updated
+- **Send messages** - Text and media (image/video/audio/document)
 - **Template messages** - Full support for WhatsApp templates with parameters (header, body, buttons)
 - **Interactive messages** - Send button messages with up to 3 custom actions
-- **Media support** - Send images, videos, documents, and audio
-- **24-hour window enforcement** - Automatically restricts messaging outside WhatsApp's window
-- **Failed message indicators** - Visual feedback for delivery failures
+- **Media proxy** - Server-side proxy for media download (`/api/media/:mediaId`)
+- **24-hour window enforcement** - UI guidance based on last inbound message (requires webhook/DB for full accuracy)
 - **WhatsApp-style UI** - Familiar interface with read receipts, timestamps, and message bubbles
+
+## Important Note About "Inbox"
+
+The WhatsApp Cloud API is webhook-first. There is no official "list conversations" endpoint.
+
+- **Phase 0 (current):** the UI runs in **send-only** mode. You can start a chat by number and send messages, but there is no server-side history yet.
+- **Phase 1:** add **webhooks + database** to store messages/statuses and power the conversation list + history.
 
 ## Setup
 
-### 1. Get Kapso credentials
+### 1. Get Meta WhatsApp credentials
 
-1. Create account at [app.kapso.ai](https://app.kapso.ai)
-2. Connect a WhatsApp number
-3. Get your credentials:
-   - `PHONE_NUMBER_ID`
-   - `KAPSO_API_KEY`
-   - `WABA_ID`
+You need:
+
+- `META_ACCESS_TOKEN` (System User token or Business token with the required permissions)
+- `WHATSAPP_PHONE_NUMBER_ID`
+- `WHATSAPP_WABA_ID`
+
+For Phase 1 (webhooks), you will also need:
+
+- `META_APP_SECRET`
+- `META_WEBHOOK_VERIFY_TOKEN` (a secret string you choose)
 
 ### 2. Clone and install
 
 ```bash
-git clone https://github.com/gokapso/whatsapp-cloud-inbox.git
+git clone https://github.com/your-org/whatsapp-cloud-inbox.git
 cd whatsapp-cloud-inbox
 npm install
 ```
 
 ### 3. Environment variables
 
-Create `.env`:
+Create `.env` (see `.env.example`):
 
 ```env
-PHONE_NUMBER_ID=your_phone_number_id
-KAPSO_API_KEY=your_kapso_api_key
-WABA_ID=your_business_account_id
-WHATSAPP_API_URL=https://api.kapso.ai/meta/whatsapp  # Optional: custom API endpoint
+META_ACCESS_TOKEN=your_meta_access_token
+WHATSAPP_PHONE_NUMBER_ID=your_phone_number_id
+WHATSAPP_WABA_ID=your_waba_id
+
+# Optional
+META_GRAPH_VERSION=v24.0
+NEXT_PUBLIC_INBOX_DEV_ALLOW_FREEFORM=true
 ```
 
 ### 4. Run
@@ -76,14 +85,6 @@ Automatically enforces WhatsApp's messaging policy:
 - **Within 24h** - Send regular messages freely
 - **Outside 24h** - Template-only mode with clear messaging
 - **No inbound messages** - Guide users to send templates
-
-### Message Types
-
-- ✅ Text messages
-- ✅ Images, videos, audio, documents
-- ✅ Template messages (with all parameter types)
-- ✅ Interactive button messages
-- ✅ Failed message indicators
 
 ## Contributing
 
