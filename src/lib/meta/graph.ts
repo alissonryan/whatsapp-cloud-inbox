@@ -95,18 +95,14 @@ export async function graphFetchJson<T>(env: MetaWhatsappEnv, args: Parameters<t
   const isJson = contentType.includes('application/json');
 
   if (!response.ok) {
-    if (isJson) {
-      try {
-        const data = (await response.json()) as { error?: GraphApiError };
-        const err = data?.error;
-        throw new GraphApiResponseError({
-          status: response.status,
-          message: err?.message ?? `Graph API request failed with status ${response.status}`,
-          error: err
-        });
-      } catch (cause) {
-        // fallthrough to text error
-      }
+    const data = isJson ? await response.json().catch(() => null) : null;
+    const err = (data as { error?: GraphApiError } | null)?.error;
+    if (err) {
+      throw new GraphApiResponseError({
+        status: response.status,
+        message: err.message ?? `Graph API request failed with status ${response.status}`,
+        error: err
+      });
     }
 
     const text = await readResponseTextSafe(response);
@@ -137,4 +133,3 @@ export async function graphFetchArrayBuffer(env: MetaWhatsappEnv, args: Paramete
   }
   return response.arrayBuffer();
 }
-
