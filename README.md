@@ -36,7 +36,7 @@ For Phase 1 (webhooks), you will also need:
 ### 2. Clone and install
 
 ```bash
-git clone https://github.com/your-org/whatsapp-cloud-inbox.git
+git clone <your-repo-url>
 cd whatsapp-cloud-inbox
 npm install
 ```
