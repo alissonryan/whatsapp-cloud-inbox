@@ -1,5 +1,5 @@
 import { NextResponse } from 'next/server';
-import { whatsappClient, PHONE_NUMBER_ID } from '@/lib/whatsapp-client';
+import { downloadMediaByUrl, getMedia } from '@/lib/meta/whatsapp';
 
 export async function GET(
   request: Request,
@@ -7,27 +7,20 @@ export async function GET(
 ) {
   const { mediaId } = await params;
   try {
-    // Get metadata for mime type
-    const metadata = await whatsappClient.media.get({
-      mediaId,
-      phoneNumberId: PHONE_NUMBER_ID
-    });
-
-    const buffer = await whatsappClient.media.download({
-      mediaId,
-      phoneNumberId: PHONE_NUMBER_ID,
-      auth: 'never' // Force no auth headers for CDN
-    });
-
-    // If buffer is a Response, return it directly
-    if (buffer instanceof Response) {
-      return buffer;
+    const metadata = await getMedia({ mediaId });
+    if (!metadata.url) {
+      return NextResponse.json(
+        { error: 'Media URL not available', mediaId },
+        { status: 404 }
+      );
     }
+
+    const buffer = await downloadMediaByUrl({ url: metadata.url });
 
     return new NextResponse(buffer, {
       headers: {
-        'Content-Type': metadata.mimeType || 'application/octet-stream',
-        'Cache-Control': 'public, max-age=86400'
+        'Content-Type': metadata.mime_type || 'application/octet-stream',
+        'Cache-Control': 'public, max-age=3600'
       }
     });
   } catch (error) {

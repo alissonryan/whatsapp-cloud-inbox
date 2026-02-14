@@ -1,5 +1,5 @@
 import { NextResponse } from 'next/server';
-import { whatsappClient, PHONE_NUMBER_ID } from '@/lib/whatsapp-client';
+import { sendInteractiveButtons } from '@/lib/meta/whatsapp';
 
 export async function POST(request: Request) {
   try {
@@ -23,13 +23,11 @@ export async function POST(request: Request) {
 
     // Build interactive button message payload
     const payload: {
-      phoneNumberId: string;
       to: string;
       bodyText: string;
       header?: { type: 'text'; text: string };
       buttons: Array<{ id: string; title: string }>;
     } = {
-      phoneNumberId: PHONE_NUMBER_ID,
       to: phoneNumber,
       bodyText,
       buttons: buttons.map((btn: { id: string; title: string }) => ({
@@ -47,7 +45,7 @@ export async function POST(request: Request) {
     }
 
     // Send interactive button message
-    const result = await whatsappClient.messages.sendInteractiveButtons(payload);
+    const result = await sendInteractiveButtons(payload);
 
     return NextResponse.json(result);
   } catch (error) {

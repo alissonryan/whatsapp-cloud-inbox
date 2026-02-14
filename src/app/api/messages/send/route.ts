@@ -1,5 +1,5 @@
 import { NextResponse } from 'next/server';
-import { whatsappClient, PHONE_NUMBER_ID } from '@/lib/whatsapp-client';
+import { sendAudio, sendDocument, sendImage, sendText, sendVideo, uploadMedia } from '@/lib/meta/whatsapp';
 
 export async function POST(request: Request) {
   try {
@@ -16,50 +16,52 @@ export async function POST(request: Request) {
     }
 
     let result;
+    let local: { uploadedMediaId: string; mediaType: string; filename: string; mimeType: string } | undefined;
 
     // Send media message
     if (file) {
       const fileType = file.type.split('/')[0]; // image, video, audio, application
-      const mediaType = fileType === 'application' ? 'document' : fileType;
+      const mediaType: 'image' | 'video' | 'audio' | 'document' =
+        fileType === 'image' || fileType === 'video' || fileType === 'audio' ? fileType : 'document';
 
       // Upload media first
-      const uploadResult = await whatsappClient.media.upload({
-        phoneNumberId: PHONE_NUMBER_ID,
-        type: mediaType as 'image' | 'video' | 'audio' | 'document',
-        file: file,
+      const uploadResult = await uploadMedia({
+        type: mediaType,
+        file,
         fileName: file.name
       });
+      local = {
+        uploadedMediaId: uploadResult.id,
+        mediaType,
+        filename: file.name,
+        mimeType: file.type
+      };
 
       // Send message with media
       if (mediaType === 'image') {
-        result = await whatsappClient.messages.sendImage({
-          phoneNumberId: PHONE_NUMBER_ID,
+        result = await sendImage({
           to,
           image: { id: uploadResult.id, caption: body || undefined }
         });
       } else if (mediaType === 'video') {
-        result = await whatsappClient.messages.sendVideo({
-          phoneNumberId: PHONE_NUMBER_ID,
+        result = await sendVideo({
           to,
           video: { id: uploadResult.id, caption: body || undefined }
         });
       } else if (mediaType === 'audio') {
-        result = await whatsappClient.messages.sendAudio({
-          phoneNumberId: PHONE_NUMBER_ID,
+        result = await sendAudio({
           to,
           audio: { id: uploadResult.id }
         });
       } else {
-        result = await whatsappClient.messages.sendDocument({
-          phoneNumberId: PHONE_NUMBER_ID,
+        result = await sendDocument({
           to,
           document: { id: uploadResult.id, caption: body || undefined, filename: file.name }
         });
       }
     } else if (body) {
       // Send text message
-      result = await whatsappClient.messages.sendText({
-        phoneNumberId: PHONE_NUMBER_ID,
+      result = await sendText({
         to,
         body
       });
@@ -70,7 +72,10 @@ export async function POST(request: Request) {
       );
     }
 
-    return NextResponse.json(result);
+    return NextResponse.json({
+      ...result,
+      ...(local ? { _local: local } : {})
+    });
   } catch (error) {
     console.error('Error sending message:', error);
     return NextResponse.json(
