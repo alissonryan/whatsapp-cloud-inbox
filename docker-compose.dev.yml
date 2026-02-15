@@ -1,0 +1,15 @@
+services:
+  db:
+    image: postgres:16-alpine
+    restart: unless-stopped
+    ports:
+      - "5433:5432"
+    environment:
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: postgres
+      POSTGRES_DB: whatsapp_cloud_inbox
+    volumes:
+      - whatsapp_cloud_inbox_pgdata:/var/lib/postgresql/data
+
+volumes:
+  whatsapp_cloud_inbox_pgdata:

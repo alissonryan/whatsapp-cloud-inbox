@@ -17,6 +17,7 @@
 - Notas de execucao:
   - Dependencias foram instaladas e `npm run build` passa.
   - Validacao ponta-a-ponta depende de Postgres (`DATABASE_URL`) + webhook configurado na Meta.
+  - Dev DB: existe `docker-compose.dev.yml` com Postgres em `localhost:5433` e migration inicial em `prisma/migrations/*`.
 
 ## Decisoes
 
