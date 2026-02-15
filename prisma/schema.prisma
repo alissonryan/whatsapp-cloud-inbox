@@ -1,0 +1,125 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+model Tenant {
+  id        String   @id @default(cuid())
+  slug      String   @unique
+  name      String
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  phoneNumbers  WhatsappPhoneNumber[]
+  contacts      Contact[]
+  conversations Conversation[]
+  messages      Message[]
+}
+
+model WhatsappPhoneNumber {
+  id                String   @id @default(cuid())
+  tenantId          String
+  tenant            Tenant   @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  wabaId            String
+  phoneNumberId     String   @unique
+  displayPhoneNumber String?
+  createdAt         DateTime @default(now())
+  updatedAt         DateTime @updatedAt
+
+  conversations Conversation[]
+}
+
+model Contact {
+  id        String   @id @default(cuid())
+  tenantId  String
+  tenant    Tenant   @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  waId      String
+  name      String?
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  conversations Conversation[]
+
+  @@unique([tenantId, waId])
+}
+
+model Conversation {
+  id            String   @id @default(cuid())
+  tenantId      String
+  tenant        Tenant   @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  phoneNumberDbId String
+  phoneNumber   WhatsappPhoneNumber @relation(fields: [phoneNumberDbId], references: [id], onDelete: Cascade)
+  contactId     String
+  contact       Contact   @relation(fields: [contactId], references: [id], onDelete: Cascade)
+
+  status       String   @default("active")
+  lastActiveAt DateTime @default(now())
+
+  messagesCount       Int      @default(0)
+  lastMessageAt       DateTime?
+  lastMessageText     String?
+  lastMessageDirection String?
+  lastMessageType     String?
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  messages Message[]
+
+  @@unique([tenantId, phoneNumberDbId, contactId])
+  @@index([tenantId, lastActiveAt])
+}
+
+model Message {
+  id             String   @id @default(cuid())
+  tenantId       String
+  tenant         Tenant   @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  conversationId String
+  conversation   Conversation @relation(fields: [conversationId], references: [id], onDelete: Cascade)
+
+  metaMessageId String   @unique
+  direction     String
+  type          String
+  content       String?
+  caption       String?
+  timestamp     DateTime
+
+  fromWaId String?
+  toWaId   String?
+
+  mediaId   String?
+  mimeType  String?
+  filename  String?
+  rawPayload Json?
+
+  status          String?
+  statusUpdatedAt DateTime?
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  statuses MessageStatus[]
+
+  @@index([conversationId, timestamp])
+  @@index([tenantId, timestamp])
+}
+
+model MessageStatus {
+  id        String   @id @default(cuid())
+  messageId String
+  message   Message  @relation(fields: [messageId], references: [id], onDelete: Cascade)
+
+  status    String
+  timestamp DateTime
+  rawPayload Json?
+
+  createdAt DateTime @default(now())
+
+  @@unique([messageId, status, timestamp])
+  @@index([messageId, timestamp])
+}
+
