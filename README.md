@@ -15,8 +15,8 @@ WhatsApp Web-style inbox UI built with Next.js for the official WhatsApp Cloud A
 
 The WhatsApp Cloud API is webhook-first. There is no official "list conversations" endpoint.
 
-- **Phase 0 (current):** the UI runs in **send-only** mode. You can start a chat by number and send messages, but there is no server-side history yet.
-- **Phase 1:** add **webhooks + database** to store messages/statuses and power the conversation list + history.
+- Without `DATABASE_URL`: the UI runs in **send-only** mode. You can start a chat by number and send messages, but there is no server-side history.
+- With `DATABASE_URL` + migrations + webhook configured (`/api/webhooks/meta`): the UI uses the database to show **conversation list + history**, and persists message statuses.
 
 ## Setup
 
@@ -50,12 +50,35 @@ META_ACCESS_TOKEN=your_meta_access_token
 WHATSAPP_PHONE_NUMBER_ID=your_phone_number_id
 WHATSAPP_WABA_ID=your_waba_id
 
+# Phase 1 (database)
+DATABASE_URL=postgresql://postgres:postgres@localhost:5433/whatsapp_cloud_inbox
+
+# Phase 1 (webhooks)
+META_APP_SECRET=your_meta_app_secret
+META_WEBHOOK_VERIFY_TOKEN=your_verify_token
+
 # Optional
 META_GRAPH_VERSION=v24.0
 NEXT_PUBLIC_INBOX_DEV_ALLOW_FREEFORM=true
 ```
 
-### 4. Run
+### 4. (Phase 1) Start Postgres + apply migrations
+
+For inbox/history you need Postgres + Prisma migrations.
+
+Local dev (Docker):
+
+```bash
+docker compose -f docker-compose.dev.yml up -d db
+```
+
+Apply migrations:
+
+```bash
+npx prisma migrate dev
+```
+
+### 5. Run
 
 ```bash
 npm run dev
