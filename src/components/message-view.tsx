@@ -210,7 +210,7 @@ export function MessageView({ conversationId, phoneNumber, contactName, onTempla
 
   useEffect(() => {
     setCanSendRegularMessage(devAllowFreeform ? true : isWithin24HourWindow(messages));
-  }, [messages]);
+  }, [messages, devAllowFreeform]);
 
   // Track if user is near bottom of scroll
   useEffect(() => {

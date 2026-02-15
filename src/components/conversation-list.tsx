@@ -164,7 +164,7 @@ export const ConversationList = forwardRef<ConversationListRef, Props>(
     );
   });
 
-  const canStartChat = inboxMode === 'send-only' && looksLikePhoneNumber(searchQuery) && filteredConversations.length === 0;
+  const canStartChat = looksLikePhoneNumber(searchQuery) && filteredConversations.length === 0;
   const startChatPhoneNumber = normalizePhoneNumberInput(searchQuery);
 
   const handleStartChat = () => {
